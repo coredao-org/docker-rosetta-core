@@ -1,5 +1,8 @@
 # docker-rosetta-core
 ## Download Archive node snapshot
+
+**Note it may take hours to finish downloading the snapshot files.**
+
 ### Testnet
 wget -t 0 -c -b https://snap.coredao.org/coredao-snapshot-testnet-20240321.tar.lz4
 
@@ -7,6 +10,9 @@ wget -t 0 -c -b https://snap.coredao.org/coredao-snapshot-testnet-20240321.tar.l
 wget -t 0 -c -b https://snap.coredao.org/coredao-snapshot-mainnet-20240321.tar.lz4
 
 ## Extract snapshot to Geth data directoy
+
+**Note it may take hours to finish extracting the snapshot files.**
+
 ### Testnet
 The directory name `core-testnet-data` must be consistent with the -v parameter defined in the [`make run-testnet-online`](https://github.com/coredao-org/docker-rosetta-core/blob/main/Makefile#L22) command.
 This directory will be mounted into the Docker container as the data directory for the Geth node.
