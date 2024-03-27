@@ -1,44 +1,27 @@
 # docker-rosetta-core
-## Download Archive node snapshot
-
-**Note it may take hours to finish downloading the snapshot files.**
-
-### Testnet
-wget -t 0 -c -b https://snap.coredao.org/coredao-snapshot-testnet-20240321.tar.lz4
-
-### Mainnet
-wget -t 0 -c -b https://snap.coredao.org/coredao-snapshot-mainnet-20240321.tar.lz4
-
-## Extract snapshot to Geth data directoy
-
-**Note it may take hours to finish extracting the snapshot files.**
-
-### Testnet
-The directory name `core-testnet-data` must be consistent with the -v parameter defined in the [`make run-testnet-online`](https://github.com/coredao-org/docker-rosetta-core/blob/main/Makefile#L22) command.
-This directory will be mounted into the Docker container as the data directory for the Geth node.
-
-mkdir core-testnet-data<br>
-nohup sh -c "lz4 -d coredao-snapshot-testnet-20240321.tar.lz4 | tar -xvf - -C core-testnet-data" &> output.log &
-
-### Mainnet
-The directory name `core-mainnet-data` must be consistent with the -v parameter defined in the [`make run-mainnet-online`](https://github.com/coredao-org/docker-rosetta-core/blob/main/Makefile#L19) command.
-This directory will be mounted into the Docker container as the data directory for the Geth node.
-
-mkdir core-mainnet-data<br>
-nohup sh -c "lz4 -d coredao-snapshot-mainnet-20240321.tar.lz4 | tar -xvf - -C core-mainnet-data" &> output.log &
-
 ## Build Docker Image
+**Building the image requires the correct [core-chain version](https://github.com/coredao-org/core-chain/releases).**
+
 ### Testnet
-sudo make build-testnet
+    make build-testnet CORE_CHAIN_VERSION=<core-chain verison>
 
 ### Mainnet
-sudo make build-mainnet
+    make build-mainnet CORE_CHAIN_VERSION=<core-chain verison>
 
 ## Run Rosetta-Core in Docker
-Ensure that the snapshot data is fully extracted into the Geth data directory before proceeding with the following instructions.
+**When FROM_SCRATCH=true, it means running the geth node based on a snapshot, which requires the container to download snapshot file from the specified [SNAPSHOT_URL](https://github.com/coredao-org/core-snapshots) and extract it during startup. This process may take several hours to complete. Please note that to expedite the synchronization speed of the geth node, the initial run must be based on a snapshot.**
+
 
 ### Testnet
-sudo make run-testnet-online
+##### Run based on snapshot:
+    make run-testnet-local FROM_SCRATCH=true SNAPSHOT_URL=<testnet snapshot url>
+
+##### Run based on current data:
+    make run-testnet-local FROM_SCRATCH=false
 
 ### Mainnet
-sudo make run-mainnet-online
+##### Run based on snapshot:
+    make run-mainnet-local FROM_SCRATCH=true SNAPSHOT_URL=<mainnet snapshot url>
+
+##### Run based on current data:
+    make run-mainnet-local FROM_SCRATCH=false

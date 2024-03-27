@@ -12,35 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Compile golang --platform=linux/amd64 --platform=linux/x86_64
-FROM ubuntu:20.04 as golang-builder
+# Compile golang
+FROM golang:1.19.8 as golang-builder
+RUN apt-get update && apt-get install -y make gcc g++ git
 
 RUN mkdir -p /app \
   && chown -R nobody:nogroup /app
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y curl make gcc g++ git
-ENV GOLANG_VERSION 1.19.8
-ENV GOLANG_DOWNLOAD_SHA256 e1a0bf0ab18c8218805a1003fd702a41e2e807710b770e787e5979d1cf947aba
-ENV GOLANG_DOWNLOAD_URL https://golang.org/dl/go$GOLANG_VERSION.linux-amd64.tar.gz
-
-RUN curl -fsSL "$GOLANG_DOWNLOAD_URL" -o golang.tar.gz \
-  && echo "$GOLANG_DOWNLOAD_SHA256  golang.tar.gz" | sha256sum -c - \
-  && tar -C /usr/local -xzf golang.tar.gz \
-  && rm golang.tar.gz
-
-ENV GOPATH /go
-ENV PATH $GOPATH/bin:/usr/local/go/bin:$PATH
-RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH"
 
 # Compile geth
 FROM golang-builder as geth-builder
 
-# VERSION: core-chain v1.0.6
-ARG core_chain_version
+# VERSION: core-chain
+ARG CORE_CHAIN_VERSION=$CORE_CHAIN_VERSION
 RUN git clone https://github.com/coredao-org/core-chain.git \
   && cd core-chain \
-  && git checkout v1.0.6
+  && git checkout ${CORE_CHAIN_VERSION}
 
 RUN cd core-chain \
   && make geth
@@ -48,28 +36,28 @@ RUN cd core-chain \
 RUN mv core-chain/build/bin/geth /app/geth \
   && rm -rf core-chain
 
+
 # Compile rosetta-core
 FROM golang-builder as rosetta-builder
 
-# VERSION: rosetta-core commit f25f9739f475a7de0f608cbba2580bdda9fcf218
+# VERSION: rosetta-core commit 84676dd64726be5ca9ece2f47dc2a4428a0031a8
 RUN git clone https://github.com/coredao-org/rosetta-core.git rosetta-core-repo \
   && cd rosetta-core-repo \
-  && git checkout f25f9739f475a7de0f608cbba2580bdda9fcf218
+  && git checkout 84676dd64726be5ca9ece2f47dc2a4428a0031a8
 
 RUN cd rosetta-core-repo \
   && go build -o rosetta-core
 
-
 RUN mv rosetta-core-repo/rosetta-core /app/rosetta-core \
   && mkdir /app/ethereum \
   && mv rosetta-core-repo/ethereum/call_tracer.js /app/ethereum/call_tracer.js \
-  && mv rosetta-core-repo/ethereum/geth.toml.testnet /app/ethereum/geth.toml \
   && rm -rf rosetta-core-repo
+
 
 ## Build Final Image
 FROM ubuntu:20.04
 
-RUN apt-get update && apt-get install -y ca-certificates && update-ca-certificates
+RUN apt-get update && apt-get install -y apt-utils bash tar lz4 wget make gcc g++ git iputils-ping ca-certificates && update-ca-certificates
 
 RUN mkdir -p /app \
   && chown -R nobody:nogroup /app \
@@ -85,7 +73,14 @@ COPY --from=geth-builder /app/geth /app/geth
 COPY --from=rosetta-builder /app/ethereum /app/ethereum
 COPY --from=rosetta-builder /app/rosetta-core /app/rosetta-core
 
+# Copy config files and scripts
+COPY core/configs/ /app/ethereum
+COPY core/scripts/ /app
+
 # Set permissions for everything added to /app
 RUN chmod -R 755 /app/*
 
-CMD ["/app/rosetta-core", "run"]
+ARG VERSION=v1.0.0
+RUN echo -n "${VERSION}" > /app/VERSION
+
+ENTRYPOINT ["/app/entrypoint.sh"]

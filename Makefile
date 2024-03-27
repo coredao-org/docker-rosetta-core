@@ -1,4 +1,6 @@
-.PHONY: build-testnet build-mainnet run-mainnet-online run-testnet-online run-mainnet-remote run-testnet-remote
+.PHONY: usage
+.PHONY: build-testnet build-mainnet
+.PHONY: run-mainnet-local run-testnet-local run-mainnet-remote run-testnet-remote
 
 PWD=$(shell pwd)
 NOFILE=100000
@@ -9,20 +11,77 @@ ifeq ($(shell expr $(DOCKER_API_VERSION) \>= 1.41), 1)
 	PLATFORM_FLAG := --platform linux/amd64
 endif
 
+
+define check_build_params
+	@if [ -z "$(CORE_CHAIN_VERSION)" ]; then \
+		echo "This target requires CORE_CHAIN_VERSION to be defined"; \
+		echo ""; \
+		echo "Usage: make build-$1 CORE_CHAIN_VERSION=<core-chain version>"; \
+		echo ""; \
+		exit 1; \
+	fi
+endef
+
+define check_local_mode_params
+	@if [ "$(FROM_SCRATCH)" != "true" ] && [ "$(FROM_SCRATCH)" != "false" ]; then \
+		echo "This target requires FROM_SCRATCH to be defined"; \
+		echo "";\
+		echo "Usage: make run-$1-local FROM_SCRATCH=<true/false> SNAPSHOT_URL=<url>"; \
+		echo "  	FROM_SCRATCH=true  - Download geth data snapshot from SNAPSHOT_URL and start geth node based on the snapshot"; \
+		echo "  	FROM_SCRATCH=false - Start geth node based on the current data directory"; \
+		echo ""; \
+		exit 1; \
+	fi
+	@if [ "$(FROM_SCRATCH)" = "true" ] && [ -z "$(SNAPSHOT_URL)" ]; then \
+		echo "SNAPSHOT_URL is not defined"; \
+		exit 1; \
+	fi
+endef
+
+define check_remote_mode_params
+	@if [ -z "$(GETH)" ]; then \
+		echo "This target requires GETH to be defined"; \
+		echo "";\
+		echo "Usage: make run-$1-local GETH=<geth rpc node url>"; \
+		echo ""; \
+		exit 1; \
+	fi
+endef
+
+help:
+	@echo "Usage: make [target]"
+	@echo ""
+	@echo " Avaliable targets:"
+	@echo "		build-testnet 		Build the testnet image"
+	@echo "		build-mainnet 		Build the mainnet image"
+	@echo "		run-testnet-local	Run the testnet image in online mode based on the local geth node"
+	@echo "		run-mainnet-local 	Run the mainnet image in online mode based on the local geth node"
+	@echo "		run-testnet-remote 	Run the testnet image in online mode based on the remote geth node"
+	@echo "		run-mainnet-remote 	Run the mainnet image in online mode based on the remote geth node"
+
+
 build-testnet:
-	docker build ${PLATFORM_FLAG} -t rosetta-core:testnet-latest -f Dockerfile.testnet .
+	@echo "Building the testnet image..."
+	$(call check_build_params,testnet)
+	docker build ${PLATFORM_FLAG} --build-arg CORE_CHAIN_VERSION=$(CORE_CHAIN_VERSION) -t rosetta-core:testnet-latest -f Dockerfile .
 
 build-mainnet:
-	docker build ${PLATFORM_FLAG} -t rosetta-core:mainnet-latest -f Dockerfile.mainnet .
+	@echo "Building the mainnet image..."
+	$(call check_build_params,mainnet)
+	docker build ${PLATFORM_FLAG} --build-arg CORE_CHAIN_VERSION=$(CORE_CHAIN_VERSION) -t rosetta-core:mainnet-latest -f Dockerfile .
 
-run-mainnet-online:
-	docker run -d --rm ${PLATFORM_FLAG} --ulimit "nofile=${NOFILE}:${NOFILE}" -v "${PWD}/core-mainnet-data:/data" -e "MODE=ONLINE" -e "NETWORK=CORE" -e "PORT=8080" -p 8080:8080 -p 35021:35021 -p 8579:8579 rosetta-core:mainnet-latest
+run-testnet-local:
+	$(call check_local_mode_params,testnet)
+	mkdir -p core-testnet-data && docker run --name rosetta-core-testnet -d --rm ${PLATFORM_FLAG} --ulimit "nofile=${NOFILE}:${NOFILE}" -v "${PWD}/core-testnet-data:/data" -e "MODE=ONLINE" -e "NETWORK=BUFFALO" -e "PORT=8080" -e "FROM_SCRATCH=$(FROM_SCRATCH)" -e "SNAPSHOT_URL=$(SNAPSHOT_URL)" -p 8080:8080 -p 35012:35012 -p 8575:8575 rosetta-core:testnet-latest
 
-run-testnet-online:
-	docker run -d --rm ${PLATFORM_FLAG} --ulimit "nofile=${NOFILE}:${NOFILE}" -v "${PWD}/core-testnet-data:/data" -e "MODE=ONLINE" -e "NETWORK=BUFFALO" -e "PORT=8080" -p 8080:8080 -p 35012:35012 -p 8575:8575 rosetta-core:testnet-latest
-
-run-mainnet-remote:
-	docker run -d --rm ${PLATFORM_FLAG} --ulimit "nofile=${NOFILE}:${NOFILE}" -e "MODE=ONLINE" -e "NETWORK=CORE" -e "PORT=8080" -e "GETH=$(geth)" -p 8080:8080  rosetta-core:mainnet-latest
+run-mainnet-local:
+	$(call check_local_mode_params,mainnet)
+	mkdir -p core-mainnet-data && docker run --name rosetta-core-mainnet -d --rm ${PLATFORM_FLAG} --ulimit "nofile=${NOFILE}:${NOFILE}" -v "${PWD}/core-mainnet-data:/data" -e "MODE=ONLINE" -e "NETWORK=CORE" -e "PORT=8080" -e "FROM_SCRATCH=$(FROM_SCRATCH)" -e "SNAPSHOT_URL=$(SNAPSHOT_URL)" -p 8080:8080 -p 35021:35021 -p 8579:8579 rosetta-core:mainnet-latest
 
 run-testnet-remote:
-	docker run -d --rm ${PLATFORM_FLAG} --ulimit "nofile=${NOFILE}:${NOFILE}" -e "MODE=ONLINE" -e "NETWORK=BUFFALO" -e "PORT=8080" -e "GETH=$(geth)" -p 8080:8080  rosetta-core:testnet-latest
+	$(call check_remote_mode_params,testnet)
+	docker run --name rosetta-core-testnet -d --rm ${PLATFORM_FLAG} --ulimit "nofile=${NOFILE}:${NOFILE}" -e "MODE=ONLINE" -e "NETWORK=BUFFALO" -e "PORT=8080" -e "GETH=$(GETH)" -p 8080:8080  rosetta-core:testnet-latest
+
+run-mainnet-remote:
+	$(call check_remote_mode_params,mainnet)
+	docker run --name rosetta-core-mainnet -d --rm ${PLATFORM_FLAG} --ulimit "nofile=${NOFILE}:${NOFILE}" -e "MODE=ONLINE" -e "NETWORK=CORE" -e "PORT=8080" -e "GETH=$(GETH)" -p 8080:8080  rosetta-core:mainnet-latest
