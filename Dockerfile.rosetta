@@ -75,7 +75,7 @@ COPY --from=rosetta-builder /app/rosetta-core /app/rosetta-core
 
 # Copy config files and scripts
 COPY core/configs/ /app/ethereum
-COPY core/scripts/ /app
+COPY core/scripts/rosetta_entrypoint.sh /app/entrypoint.sh
 
 # Set permissions for everything added to /app
 RUN chmod -R 755 /app/*
